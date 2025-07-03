@@ -1,0 +1,228 @@
+*fileflip.txt*
+*FileFlip* *fileflip* *fileflip.nvim*
+--------------------------------------------------------------------------------
+CONTENTS                                                       *fileflip-contents*
+
+  1. Commands                                              |fileflip-commands|
+  2. Configuration                                           |fileflip-config|
+  3. Key Mappings                                      |fileflip-key-mappings|
+  4. Thanks                                                  |fileflip-thanks|
+
+--------------------------------------------------------------------------------
+COMMANDS                                                       *fileflip-commands*
+
+FileFlipByExtension                                      *:FileFlipByExtension*
+    Switch to the first available related file based on extension mappings.
+
+FileFlipByPrefixSuffix                                   *:FileFlipByPrefixSuffix*
+    Switch to the first available related file based on prefix/suffix mappings.
+
+FileFlipByExtensionShow                                  *:FileFlipByExtensionShow*
+    List all available files for the current base filename and the extension mappings.
+
+FileFlipByPrefixSuffixShow                               *:FileFlipByPrefixSuffixShow*
+    List all available files for the current base filename and the prefix/suffix mappings.
+
+FileFlipClearCache                                       *:FileFlipClearCache*
+    Clear the cache.
+
+FileFlipShowStats                                        *:FileFlipShowStats*
+    Show cache usage statistics
+
+FileFlipShowConfig                                       *:FileFlipShowConfig*
+    Attempt to show the current configuration
+
+FileFlipLoadConfig                                       *:FileFlipLoadConfig*
+    Attempt to load or reload any .filefliprc config file found (will not exist when `ignore_filefliprc` is true)
+
+--------------------------------------------------------------------------------
+CONFIGURATION                                                    *fileflip-config*
+
+Global configuration settings can be set when configuring the plugin in your plugin manager (e.g. lazy.nvim).
+
+This might look like the following:
+
+>lua
+    {
+       'samr/fileflip.nvim',
+        config = function()
+          require("fileflip").setup({
+            -- Add your own extension mappings here, for example:
+            extension_maps = {
+                h = { "cpp", "cc", "c" },
+                hpp = { "cpp", "cc" },
+                c = { "h" },
+                cc = { "hpp", "h" },
+                cpp = { "hpp", "h" },
+            },
+
+            -- Add your own alternative mappings here, for example:
+            prefix_suffix_maps = {
+                ["test_/"] = { "" },      -- prefix  (test_foo.cc -> foo.cc)
+                ["/_test"] = { "" },      -- suffix  (foo_test.cc -> foo.cc)
+                ["test_/_spec"] = { "" }, -- prefix/suffix  (test_foo_spec.cc -> foo.cc)
+                [""] = { "_test", "test_/", "test_/_spec" },  -- maps back (foo.cc -> *)
+            },
+
+            -- Set project root markers (i.e. files or directories that exist only in project root).
+            root_markers = { ".git", "package.json" },
+
+            -- Adjust cache size (i.e. number of files and directory mappings to store, default=10000)
+            cache_size = 500,
+        })
+        end,
+    }
+
+Additionally it is possible to specify per-project configuration settings that override the global ones by creating
+a `.filefliprc` file in the project root directory. It uses the same syntax as the lua configuration specified above,
+but additionally recognizes comments that start with the `#`. This `.filefliprc` file could contains something similar
+to the following:
+
+
+    # This is a .filefliprc file
+    cache_size = 5000
+
+    extension_maps = {
+        h = { "cpp", "cc", "c" },
+        hpp = { "cpp", "cc" },
+        c = { "h" },
+        cc = { "hpp", "h" },
+        cpp = { "hpp", "h" },
+    }
+
+    prefix_suffix_maps = {
+        ["_test"] = { "" },  -- another way to represent a suffix
+        ["test_/"] = { "" },
+        ["test_/_spec"] = { "" },
+        [""] = { "_test", "test_/", "test_/_spec" },
+    }
+
+
+The `.filefliprc` file will be auto-loaded when changing buffers or creating new ones. The auto-loading can be turned
+off with `autoload_filefliprc = false`, in which case it will only be loaded once on Neovim start based on the current
+working directory.
+
+The loading of `.filefliprc` files can be turned off altogether by setting `ignore_filefliprc = true`.
+
+The default global configuration looks like the following:
+
+
+    -- Extension mappings: source extension -> list of target extensions
+    extension_maps = {
+        -- C/C++
+        c = { "h", "hpp", "hxx" },
+        cc = { "h", "hpp", "hxx" },
+        cpp = { "h", "hpp", "hxx" },
+        cxx = { "h", "hpp", "hxx" },
+        cu = { "cuh" },
+
+        h = { "c", "cc", "cpp", "cxx" },
+        hpp = { "c", "cc", "cpp", "cxx" },
+        hxx = { "c", "cc", "cpp", "cxx" },
+        cuh = { "cu" },
+
+        -- JavaScript/TypeScript
+        js = { "ts", "jsx", "tsx" },
+        ts = { "js", "jsx", "tsx" },
+        jsx = { "js", "ts", "tsx" },
+        tsx = { "js", "ts", "jsx" },
+
+        -- Python
+        py = { "pyi", "pyx" },
+        pyi = { "py" },
+        pyx = { "py" },
+
+        -- Web files
+        html = { "css", "js", "ts" },
+        css = { "html", "scss", "sass" },
+        scss = { "css", "html" },
+        sass = { "css", "html" },
+    },
+
+    -- Prefix/suffix mappings: prefix/suffix -> list of possible prefix/suffixes
+    prefix_suffix_maps = {
+        -- Test file patterns
+        ["_test"] = { "" },       
+        ["test_/"] = { "" },      
+        ["_spec"] = { "" },
+        [".test"] = { "" },
+        [".spec"] = { "" },
+
+        -- Implementation patterns
+        ["_impl"] = { "" },
+        ["_implementation"] = { "" },
+        [".impl"] = { "" },
+
+        -- Mock patterns
+        ["_mock"] = { "" },
+        [".mock"] = { "" },
+
+        -- Collected mapping the other way.
+        [""] = {
+            "_test",
+            "test_/",
+            "_spec",
+            ".test",
+            ".spec",
+            "_impl",
+            "_implementation",
+            ".impl",
+            "_mock",
+            ".mock",
+        },
+    },
+
+    -- Root directory marker files (plugin won't search above directories containing these)
+    root_markers = {
+        ".git",
+        ".svn",
+        ".hg",
+        ".idea",
+        ".vscode",
+        "Makefile",
+        "CMakeLists.txt",
+        "Cargo.toml",
+        "package.json",
+        "LICENSE",
+        "LICENSE.md",
+    },
+
+    -- Maximum depth to search upward from current file
+    max_search_depth = 10,
+
+    -- Cache settings
+    cache_enabled = true,
+    cache_size = 10000,
+
+    -- Whether to ignore .filefliprc files, when true will not autoload or parse them.
+    ignore_filefliprc = false,
+
+    -- Whether to autoload the file based on the buffer. When false, it will only load once on startup based on the
+    -- current working directory.
+    autoload_filefliprc = true,
+
+
+Note that if you override a specific default setting, it will entirely replace the value rather than doing a merge of
+what was there. For example, when loading the above example `.filefliprc` file, it will replace the default
+`extension_maps` value such that there is no mapping for going between "html" and "js" files. However, a merge is done
+across all the settings such that, in that example, the `cache_size` will remain 10000, since it was not overridden or
+specified explicitly.
+
+--------------------------------------------------------------------------------
+KEY MAPPINGS                                                *fileflip-key-mappings*
+
+No key mappings are set up by default. Feel free to define your own with something similar to the following:
+
+    vim.keymap.set('n', '<leader>fs', '<cmd>FileFlipByExtension<cr>', { desc = 'Switch to related file using extension' })
+    vim.keymap.set('n', '<leader>fa', '<cmd>FileFlipByPrefixSuffix<cr>', { desc = 'Switch to related file using prefix/suffix' })
+    vim.keymap.set('n', '<leader>ffs', '<cmd>FileFlipByExtensionShow<cr>', { desc = 'Show available files by extension' })
+    vim.keymap.set('n', '<leader>ffa', '<cmd>FileFlipByPrefixSuffixShow<cr>', { desc = 'Show available files by prefix/suffix' })
+
+
+--------------------------------------------------------------------------------
+THANKS                                                           *fileflip-thanks*
+
+The following plugins on github provide similar functionality and were an inspiration for this one:
+
+- [tpope/vim-projectionist](https://github.com/tpope/vim-projectionist)
+- [jakemason/ouroboros](https://github.com/jakemason/ouroboros.nvim)

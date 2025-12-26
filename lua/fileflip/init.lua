@@ -1,5 +1,8 @@
 local M = {}
 
+-- File system abstraction for testability
+local fs = require("fileflip.fs")
+
 -----------------
 -- Default config
 --
@@ -126,7 +129,7 @@ local function find_root_directory(start_dir)
         -- Check if current directory contains any root markers
         for _, marker in ipairs(config.root_markers) do
             local marker_path = current_dir .. "/" .. marker
-            if vim.fn.filereadable(marker_path) == 1 or vim.fn.isdirectory(marker_path) == 1 then
+            if fs.filereadable(marker_path) or fs.isdirectory(marker_path) then
                 return current_dir
             end
         end
@@ -211,7 +214,7 @@ local function get_from_cache(key)
     end
 
     local cached_path = file_cache[key]
-    if cached_path and vim.fn.filereadable(cached_path) == 1 then
+    if cached_path and fs.filereadable(cached_path) then
         -- Move to front of cache (LRU)
         for i, cached_key in ipairs(cache_order) do
             if cached_key == key then
@@ -260,7 +263,7 @@ local function get_predicted_directory(source_dir, source_ext, target_ext, root_
         predicted_dir = vim.fn.fnamemodify(predicted_dir, ":p:h") -- Normalize path
 
         -- Verify directory exists
-        if vim.fn.isdirectory(predicted_dir) == 1 then
+        if fs.isdirectory(predicted_dir) then
             return predicted_dir
         else
             -- Remove invalid cache entry
@@ -281,7 +284,7 @@ local function search_file_in_directory(directory, basename, extension)
     local filename = basename .. "." .. extension
     local filepath = directory .. "/" .. filename
 
-    if vim.fn.filereadable(filepath) == 1 then
+    if fs.filereadable(filepath) then
         return filepath
     end
 
@@ -466,10 +469,10 @@ local function search_alternative_files(
     -- Fourth, do a full recursive search from root
     for _, alt_basename in ipairs(alternative_basenames) do
         local pattern = "**/" .. alt_basename .. "." .. extension
-        local glob_result = vim.fn.globpath(root_dir, pattern, false, true)
+        local glob_result = fs.globpath(root_dir, pattern, false, true)
 
         for _, file_path in ipairs(glob_result) do
-            if vim.fn.filereadable(file_path) == 1 then
+            if fs.filereadable(file_path) then
                 local cache_key = get_cache_key(alt_basename, extension, root_dir)
                 add_to_cache(cache_key, file_path)
 
@@ -498,10 +501,10 @@ local function search_files_recursively_in_tree(root_dir, basename, target_exten
     -- Use vim's globpath to recursively search for files
     for _, ext in ipairs(target_extensions) do
         local pattern = "**/" .. basename .. "." .. ext
-        local glob_result = vim.fn.globpath(root_dir, pattern, false, true)
+        local glob_result = fs.globpath(root_dir, pattern, false, true)
 
         for _, file_path in ipairs(glob_result) do
-            if vim.fn.filereadable(file_path) == 1 then
+            if fs.filereadable(file_path) then
                 table.insert(found_files, file_path)
             end
         end
@@ -627,7 +630,7 @@ local function find_rc_file(start_path)
         local rc_path = current_path .. "/.filefliprc"
 
         -- Check if .filefliprc exists and is readable
-        if vim.fn.filereadable(rc_path) == 1 then
+        if fs.filereadable(rc_path) then
             return rc_path
         end
 
@@ -1319,6 +1322,62 @@ function M.setup(user_config)
         -- Load configuration immediately
         M.load_config()
     end
+end
+
+-------------------------------------
+-- Test mode: expose internal functions for testing
+--
+if vim.env.FILEFLIP_TEST_MODE then
+    M._test = {
+        -- Utility functions
+        get_file_parts = get_file_parts,
+        get_basename_parts = get_basename_parts,
+        get_prefix_and_suffix = get_prefix_and_suffix,
+        generate_alternative_basenames = generate_alternative_basenames,
+
+        -- Core search functions
+        find_root_directory = find_root_directory,
+        search_file_in_directory = search_file_in_directory,
+        search_files_recursively = search_files_recursively,
+        search_files_recursively_in_tree = search_files_recursively_in_tree,
+        search_alternative_files = search_alternative_files,
+
+        -- Cache functions
+        get_cache_key = get_cache_key,
+        add_to_cache = add_to_cache,
+        get_from_cache = get_from_cache,
+        get_directory_mapping_key = get_directory_mapping_key,
+        add_directory_mapping_to_cache = add_directory_mapping_to_cache,
+        get_predicted_directory = get_predicted_directory,
+
+        -- Config parsing functions
+        find_rc_file = find_rc_file,
+        remove_comments = remove_comments,
+        parse_rc_file = parse_rc_file,
+        parse_value = parse_value,
+        parse_table = parse_table,
+        parse_quoted_string = parse_quoted_string,
+        parse_unquoted_value = parse_unquoted_value,
+
+        -- Access to state (for cache testing)
+        get_state = function()
+            return {
+                config = config,
+                file_cache = file_cache,
+                cache_order = cache_order,
+                directory_mapping_cache = directory_mapping_cache,
+                dir_cache_order = dir_cache_order,
+            }
+        end,
+
+        -- Reset state between tests
+        reset_state = function()
+            file_cache = {}
+            cache_order = {}
+            directory_mapping_cache = {}
+            dir_cache_order = {}
+        end,
+    }
 end
 
 return M
